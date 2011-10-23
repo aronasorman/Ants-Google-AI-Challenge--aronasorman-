@@ -15,8 +15,10 @@ module Ants
   , myAnts -- return list of my Ants
   , enemyAnts -- return list of visible enemy Ants
   , passable
+  , isWater
   , distance
   , timeRemaining
+  , row, col
 
     -- main function
   , game
@@ -82,12 +84,12 @@ data MetaTile = MetaTile
   , visible :: Visible
   } deriving (Show)
 
-data Owner = Me | Enemy1 | Enemy2 | Enemy3 deriving (Show,Eq,Bounded,Enum)
+data Owner = Me | Enemy1 | Enemy2 | Enemy3 deriving (Show,Eq,Ord,Bounded,Enum)
 
 data Ant = Ant
   { point :: Point
   , owner :: Owner
-  } deriving (Show,Eq)
+  } deriving (Show,Eq,Ord)
 
 data Direction = North | East | South | West deriving (Bounded, Eq, Enum)
 
@@ -205,7 +207,10 @@ move dir p
 passable :: World -> Order -> Bool
 passable w order =
   let newPoint = move (direction order) (point $ ant order)
-  in  tile (w %! newPoint) /= Water
+  in  not $ isWater w newPoint
+
+isWater :: World -> Point -> Bool
+isWater w p = tile (w %! p) == Water
 
 issueOrder :: Order -> IO ()
 issueOrder order = do
