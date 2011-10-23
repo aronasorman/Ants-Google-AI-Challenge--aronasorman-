@@ -13,8 +13,6 @@ import Exploring
 import Foraging
 import Utilities  
 
-
-
 generateOrder :: GameParams -> GameState -> AntTargets -> FutureOrders -> Ant -> FutureOrders
 generateOrder gp gs ta fo ant = addOrder fo $ do 
   target <- M.lookup ant ta

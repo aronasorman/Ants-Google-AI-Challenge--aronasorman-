@@ -9,6 +9,8 @@ import qualified Data.Map as M
 import Ants
 import Utilities
 
+increment = 5
+
 -- for now, follow the previously allocated ant who is the closest. For now.
 -- if there was no one allocated, then order the ants to go 10 rows north. If we hit
 -- an obstacle, then go south. Haha.
@@ -18,27 +20,33 @@ explore gp gs ta ants = case M.null ta of
 
 -- ant simply bobs up or down, as long as the target is not water
 exploreMap :: GameState -> AntTargets -> Ant -> AntTargets 
-exploreMap gs ta ant' = case goUpOrDown gs ant' `mplus` goLeftOrRight gs ant' of
-  Nothing -> ta
-  Just p -> M.insert ant' p ta
+exploreMap gs ta ant' = M.insert ant' dir ta
+  where
+    dir = directionWithLeastObstacles gs ant'
 
-goUpOrDown :: GameState -> Ant -> Maybe Point
-goUpOrDown gs ant' = 
-  find (not . isWater w) $ map (toPoint . incAntRow) increments
+directionWithLeastObstacles :: GameState -> Ant -> Point
+directionWithLeastObstacles gs ant' = 
+  head $ sortBy (comparing $ countObstacles gs ant') allPoints
     where
-      w = world gs
-      toPoint row' = (row', col . point $ ant')
-      increments = [-10,10]
-      incAntRow inc = (+inc) . row . point $ ant'
+      allPoints = [increment,-increment] >>= makePoint
+      makePoint a = map ((,) a) [increment, -increment]
 
-goLeftOrRight :: GameState -> Ant -> Maybe Point
-goLeftOrRight gs ant' = find (not . isWater w) $ map (toPoint . incAntCol) increments
-    where
-      w = world gs
-      toPoint col' = (row . point $ ant', col')
-      increments = [-10,-5,5,10]
-      incAntCol inc = (+inc) . col . point $ ant'
-      
+countObstacles :: GameState -> Ant -> Point -> Int
+countObstacles gs ant' p = 
+  let pAnt = point ant'
+  in if pAnt == p
+     then 0
+     else let rowDiff = case (row pAnt - row p) `compare` 0 of
+                GT -> 1
+                LT -> -1
+                EQ -> 0
+              colDiff = case (col pAnt - col p) `compare` 0 of
+                GT -> 1
+                LT -> -1
+                EQ -> 0
+              inc = if isWater (world gs) p then 1 else 0
+          in inc + countObstacles gs ant' (row p + rowDiff, col p + colDiff)
+                  
 closestAnt :: GameParams -> [Ant] -> Point -> Maybe Ant
 closestAnt _ [] _ = Nothing
 closestAnt gp ants food' = return . head $ sortBy (comparing distance') ants
