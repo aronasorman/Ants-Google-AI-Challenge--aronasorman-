@@ -14,7 +14,7 @@ import Foraging
 import Utilities  
 
 generateOrder :: GameParams -> GameState -> AntTargets -> FutureOrders -> Ant -> FutureOrders
-generateOrder gp gs ta fo ant = addOrder fo $ do 
+generateOrder gp gs ta fo ant = addOrder gs fo $ do 
   target <- M.lookup ant ta
   direction' <- movesToDirection gp gs ant target
   return $ Order ant direction'

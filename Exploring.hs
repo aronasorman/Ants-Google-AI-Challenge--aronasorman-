@@ -9,7 +9,7 @@ import qualified Data.Map as M
 import Ants
 import Utilities
 
-increment = 5
+increment = 3
 
 -- for now, follow the previously allocated ant who is the closest. For now.
 -- if there was no one allocated, then order the ants to go 10 rows north. If we hit
@@ -26,7 +26,7 @@ exploreMap gs ta ant' = M.insert ant' dir ta
 
 directionWithLeastObstacles :: GameState -> Ant -> Point
 directionWithLeastObstacles gs ant' = 
-  head $ sortBy (comparing $ countObstacles gs ant') allPoints
+  head $ sortBy (comparing $ countObstacles gs ant') $ reverse allPoints
     where
       allPoints = [increment,-increment] >>= makePoint
       makePoint a = map ((,) a) [increment, -increment]

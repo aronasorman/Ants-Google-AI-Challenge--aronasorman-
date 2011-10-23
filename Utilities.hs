@@ -29,13 +29,31 @@ orderFutureLocation order = let currentPosition = point . ant $ order
                             in futurePosition currentPosition direction'
 
 -- if no other ant will go to this point, then allow this order
-addOrder :: FutureOrders -> Maybe Order -> FutureOrders
-addOrder fo Nothing = fo -- no order was issued for this ant, so do nothing
-addOrder fo (Just order) = 
+addOrder :: GameState -> FutureOrders -> Maybe Order -> FutureOrders
+addOrder gs fo Nothing = fo -- no order was issued for this ant, so do nothing
+addOrder gs fo (Just order) = 
   let p = point $ ant order
+      otherAnts = ants gs
+      movingAnts = map ant $ M.elems fo
+      notMovingAnts = otherAnts \\ movingAnts
   in case M.lookup p fo of
-    Nothing -> M.insert p order fo
-    _ -> fo --some ant will already go to this point, so don't let this order push through
+    Just _ -> fo --some ant will already go to this point, so don't let this order push through
+    Nothing -> case willMoveToAnAnt notMovingAnts fo order of
+      Nothing -> fo
+      Just o -> M.insert p o fo
+
+-- checks if order will move ant A to the location of a given ant B. If so, check
+-- if ant B will move. If Ant B will not move, then return Nothing. Else, Just order
+willMoveToAnAnt :: [Ant] -> FutureOrders -> Order -> Maybe Order
+willMoveToAnAnt ants fo order =
+  let movingAnts = map ant $ M.elems fo
+      futureLocation = orderFutureLocation order
+      currentAntLocations = map (\ant' -> (ant',point ant')) ants
+  in case find (\(_,p') -> futureLocation == p') currentAntLocations of
+    Nothing -> return order
+    Just (ant',_) -> case ant' `elem` movingAnts of 
+      True -> return order
+      False -> Nothing
 
 -- given my current position and a direction i want to go, tell me what position i'll end up
 futurePosition :: Point -> Direction -> Point
