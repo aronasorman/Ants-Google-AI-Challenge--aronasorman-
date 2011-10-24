@@ -6,6 +6,9 @@ Should contain no logic whatsoever.
 -}
 
 import Control.Monad (liftM)
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HS
+import Data.IORef (IORef)
 import Data.Map (Map)
 import Data.List
 import Data.Ord (comparing)
@@ -17,10 +20,19 @@ type FutureOrders = Map Point Order -- avoid two ants from stepping on each othe
 
 type AntTargets = Map Ant Point -- datastructure to represent an ant and its designated target
 
+type Unexplored = HashSet Point
+
 -- | Picks the first "passable" order in a list
 -- returns Nothing if no such order exists
 tryOrders :: World -> [Order] -> Maybe Order
 tryOrders w = find (passable w)
+
+allPoints :: GameParams -> [Point]
+allPoints gp = [0..row'] >>= buildPoints
+  where
+    buildPoints r = map (\c -> (r,c)) [0..col']
+    row' = rows gp
+    col' = cols gp
 
 -- where will my order take me?
 orderFutureLocation :: Order -> Point
@@ -51,9 +63,7 @@ willMoveToAnAnt ants fo order =
       currentAntLocations = map (\ant' -> (ant',point ant')) ants
   in case find (\(_,p') -> futureLocation == p') currentAntLocations of
     Nothing -> return order
-    Just (ant',_) -> case ant' `elem` movingAnts of 
-      True -> return order
-      False -> Nothing
+    Just _ -> Nothing
 
 -- given my current position and a direction i want to go, tell me what position i'll end up
 futurePosition :: Point -> Direction -> Point

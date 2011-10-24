@@ -1,6 +1,7 @@
 module Exploring(explore) where
 
 import Control.Monad (mplus)
+import Data.HashSet (toList)
 import Data.List
 import Data.Ord
 
@@ -11,44 +12,22 @@ import Utilities
 
 increment = 3
 
--- for now, follow the previously allocated ant who is the closest. For now.
--- if there was no one allocated, then order the ants to go 10 rows north. If we hit
--- an obstacle, then go south. Haha.
-explore :: GameParams -> GameState -> AntTargets -> [Ant] -> AntTargets
-explore gp gs ta ants = case M.null ta of
-  _ -> foldl' (exploreMap gs) ta ants
+type UnexploredList = [Point]
 
--- ant simply bobs up or down, as long as the target is not water
-exploreMap :: GameState -> AntTargets -> Ant -> AntTargets 
-exploreMap gs ta ant' = M.insert ant' dir ta
+-- find the nearest unexplored area for each ant
+explore :: GameParams -> GameState -> Unexplored -> AntTargets -> [Ant] -> AntTargets
+explore gp gs unex ta ants = let unexList = toList unex
+                             in case M.null ta of
+                               _ -> foldl' (exploreMap gp unexList) ta ants
+
+exploreMap :: GameParams -> UnexploredList -> AntTargets -> Ant -> AntTargets 
+exploreMap gp unexList ta ant' = let targetPoint = nearestUnexplored gp unexList ant'
+                                 in case targetPoint of
+                                   Nothing -> ta
+                                   Just p -> M.insert ant' p ta
+
+nearestUnexplored :: GameParams -> UnexploredList -> Ant -> Maybe Point
+nearestUnexplored gp [] _ = Nothing
+nearestUnexplored gp unexList ant' = return $ minimumBy (comparing distance') unexList
   where
-    dir = directionWithLeastObstacles gs ant'
-
-directionWithLeastObstacles :: GameState -> Ant -> Point
-directionWithLeastObstacles gs ant' = 
-  head $ sortBy (comparing $ countObstacles gs ant') $ reverse allPoints
-    where
-      allPoints = [increment,-increment] >>= makePoint
-      makePoint a = map ((,) a) [increment, -increment]
-
-countObstacles :: GameState -> Ant -> Point -> Int
-countObstacles gs ant' p = 
-  let pAnt = point ant'
-  in if pAnt == p
-     then 0
-     else let rowDiff = case (row pAnt - row p) `compare` 0 of
-                GT -> 1
-                LT -> -1
-                EQ -> 0
-              colDiff = case (col pAnt - col p) `compare` 0 of
-                GT -> 1
-                LT -> -1
-                EQ -> 0
-              inc = if isWater (world gs) p then 1 else 0
-          in inc + countObstacles gs ant' (row p + rowDiff, col p + colDiff)
-                  
-closestAnt :: GameParams -> [Ant] -> Point -> Maybe Ant
-closestAnt _ [] _ = Nothing
-closestAnt gp ants food' = return . head $ sortBy (comparing distance') ants
-  where
-    distance' ant = distance gp (point ant) food'
+    distance' p = distance gp p (point ant')

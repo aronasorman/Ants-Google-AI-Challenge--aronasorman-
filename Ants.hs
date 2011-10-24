@@ -17,6 +17,7 @@ module Ants
   , passable
   , isWater
   , distance
+  , visible
   , timeRemaining
   , row, col
 
