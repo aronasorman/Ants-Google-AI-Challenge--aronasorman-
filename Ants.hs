@@ -7,6 +7,10 @@ module Ants
   , GameParams (..)
   , GameState (..)
   , Order (..)
+  , Tile(..)
+  , MetaTile(..)
+  , Col
+  , Row
   , Point
   , Food
   , World
@@ -15,10 +19,9 @@ module Ants
   , myAnts -- return list of my Ants
   , enemyAnts -- return list of visible enemy Ants
   , passable
-  , isWater
   , distance
-  , visible
   , timeRemaining
+  , move
   , row, col
 
     -- main function

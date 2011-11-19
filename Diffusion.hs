@@ -1,6 +1,6 @@
 module Diffusion(
                 -- types
-                Agent
+                Agent(..)
                 , Scent
                 , AgentStack
                 , ScentStack
@@ -10,6 +10,8 @@ module Diffusion(
                 
                 -- functions
                 , processWorld
+                , getTile
+                , scentStrength
                   
                 -- constants
                 , diff_max
@@ -66,6 +68,12 @@ type ScentedWorld = Map Point ScentedTile
 processWorld :: GameState -> ScentedWorld
 processWorld gs = propagateAll gs $ placeAgents gs $ initScentedWorld (world gs)
 
+scentStrength :: Agent -> ScentedTile -> Double
+scentStrength a = M.findWithDefault 0 (Scent a) . scents
+
+getTile :: Point -> ScentedWorld -> ScentedTile
+getTile p = M.findWithDefault undefined p
+
 ---
 --- Implementation
 ---
@@ -76,10 +84,8 @@ addAgent agent tile = let others = agents tile
 
 addScent :: Agent -> Double -> ScentedTile -> ScentedTile
 addScent agent strength tile = let scent = scents tile
-                               in tile { scents = M.insert (Scent agent) strength scent }
-
-scentStrength :: Agent -> ScentedTile -> Double
-scentStrength a = M.findWithDefault 0 (Scent a) . scents
+                                   strength' = strength + scentStrength agent tile
+                               in tile { scents = M.insert (Scent agent) strength' scent }
 
 clearScents :: ScentedTile -> ScentedTile
 clearScents tile = tile { scents = M.empty }
