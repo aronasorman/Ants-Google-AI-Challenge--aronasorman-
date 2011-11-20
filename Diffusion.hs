@@ -20,7 +20,7 @@ module Diffusion(
   ) where
 
 import Control.Monad
-import Data.Array
+import Data.Array.Diff
 import Data.List
 import Data.Map (Map)
 
@@ -32,11 +32,11 @@ import Ants
 
 diff_rate = 0.25
 
-diff_max = 20
+diff_max = 200
 
 diff_min = 0.001 :: ScentStrength
 
-propagate_length = 5
+propagate_length = 9
 
 -- TYPES
 
@@ -177,7 +177,7 @@ propagate1 w = (w//) $ do
       currentval = scent agent t
       t' = addScent agent diffval t
    in do
-    guard $ diffval /= currentval
+    guard $ diffval > currentval
     return (p,t')
     
 propagate' :: Int -> ScentedWorld -> ScentedWorld
