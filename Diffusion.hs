@@ -1,55 +1,51 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Diffusion(
-                -- types
-                Agent(..)
-                , Scent
-                , AgentStack
-                , ScentStack
-                , ScentedTile(..)
-                , ScentedWorld
-                  
-                
-                -- functions
-                , processWorld
-                , getTile
-                , scentStrength
-                  
-                -- constants
-                , diff_max
-                , diff_min
-                ) where
+  -- types
+  Agent(..)
+  , Scent
+  , ScentedTile
+  , ScentedWorld
+    
+    -- constants
+  , diff_rate
+  , diff_max
+  , diff_min
+    
+    -- functions
+  , initScentedWorld
+  , resetWorld
+  , propagate
+  , scent
+  , getTile
+  ) where
 
-import Data.Array 
+import Control.Monad
+import Data.Array
 import Data.List
-import Data.Hashable
-import Data.HashMap.Lazy (HashMap)
+import Data.Map (Map)
 
-import qualified Data.HashMap.Lazy as M
-
+import qualified Data.Map as M
+  
 import Ants
 
 -- CONSTANTS
 
 diff_rate = 0.25
 
-diff_max = 10 :: Double
+diff_max = 20
 
-diff_min = 0.001
+diff_min = 0.001 :: ScentStrength
+
+propagate_length = 5
 
 -- TYPES
 
 -- | Agents are items that release their own scent
 data Agent = Food | Own | Enemy | OwnHill | EnemyHill
-           deriving (Eq, Ord, Show, Bounded, Enum)
-
-instance Hashable Agent where
-  hash a = let agents = [Food .. EnemyHill]
-           in case findIndex (==a) agents of
-             Nothing -> 0
-             Just result -> result
+           deriving (Eq, Ord, Show, Enum, Bounded)
 
 newtype Scent = Scent Agent
-           deriving (Ord, Show, Hashable)
+           deriving (Ord, Show)
 
 data TileType = LandTile | WaterTile
               deriving (Eq, Ord, Show)
@@ -61,45 +57,64 @@ data ScentedTile = ScentedTile {
   agents :: Maybe AgentStack
   , landtype :: TileType
   , scents :: ScentStack
-  } deriving (Eq, Show)
+  } deriving (Eq, Ord, Show)
 
 type AgentStack = Agent
 
-type ScentStack = HashMap Scent Double
+type ScentStack = Map Scent ScentStrength
 
-data ScentedWorld = SW {
-  unwrap :: HashMap Point ScentedTile
-  , pointBound :: Point
-  }
+type ScentedWorld = Array Point ScentedTile
+
+type Lambda = Double
+
+type ScentStrength = Double
 
 -- exposed functions
-                    
--- | Propagate the agents in the gamestate and and return a world with their scents
--- | scattered in the world
-processWorld :: GameState -> ScentedWorld
-processWorld gs = propagateAll gs $ placeAgents gs $ initScentedWorld (world gs)
+                     
+-- | initialize the world, setting the land type of each tile
+initScentedWorld :: World -> ScentedWorld
+initScentedWorld w = array (bounds w) [(p,initTile $ tile t) | (p,t) <- assocs w]
 
-scentStrength :: Agent -> ScentedTile -> Double
-scentStrength a = M.lookupDefault 0 (Scent a) . scents
+
+-- | remove the agents from a previous turn, and place the location of each agent
+resetWorld :: GameState -> ScentedWorld -> ScentedWorld
+resetWorld gs = placeAgents gs . clearAgents
+                
+-- | propagate the scent of each agent
+propagate :: ScentedWorld -> ScentedWorld
+propagate =  propagate' propagate_length
+             
+-- | returns the scent of a specific agent on a tile, but returns 0
+-- if the current scent is less than diff_min
+scent :: Agent -> ScentedTile -> ScentStrength
+scent agent tile = let val = M.findWithDefault 0 (Scent agent) $ scents tile
+                   in if val <= diff_min
+                      then 0
+                      else val
 
 getTile :: Point -> ScentedWorld -> ScentedTile
-getTile p = M.lookupDefault undefined p . unwrap
+getTile = flip (%!)
 
+                    
 ---
 --- Implementation
 ---
     
 addAgent :: Agent -> ScentedTile -> ScentedTile
-addAgent agent tile = let others = agents tile
-                      in tile { agents = Just agent }
+addAgent agent tile = tile { agents = Just agent }
 
 addScent :: Agent -> Double -> ScentedTile -> ScentedTile
 addScent agent strength tile = let scent = scents tile
-                                   strength' = strength + scentStrength agent tile
-                               in tile { scents = M.insert (Scent agent) strength' scent }
+                               in tile { scents = M.insert (Scent agent) strength scent }
 
-clearScents :: ScentedTile -> ScentedTile
-clearScents tile = tile { scents = M.empty }
+clearScent :: ScentedTile -> ScentedTile
+clearScent tile = tile { scents = M.empty }
+
+clearAgent :: ScentedTile -> ScentedTile
+clearAgent tile = tile { agents = Nothing }
+
+clearAgents :: ScentedWorld -> ScentedWorld
+clearAgents w = w // [(p, clearAgent t) | (p,t) <- assocs w]
 
 -- | Initialize a scented tile's landtype based on a Tile. (initialize if water or land)
 initTile :: Tile -> ScentedTile
@@ -108,34 +123,27 @@ initTile tile =
     Water -> ScentedTile Nothing WaterTile M.empty
     _ -> ScentedTile Nothing LandTile M.empty
 
--- | initialize the world, setting the land type of each tile
-initScentedWorld :: World -> ScentedWorld
-initScentedWorld w = SW w' $ b $ bounds w
-  where
-    w' = M.fromList [(p, initTile $ tile t) | (p, t) <- assocs w]
-    b (_,max) = max
-
--- | Place own ants and food on the scented world
+-- | Place own ants and food, plus their scents,  on the scented world
 -- NOTE: EDIT IF YOU WANT TO TRACK MORE AGENTS
 placeAgents :: GameState -> ScentedWorld -> ScentedWorld
 placeAgents gs = placeOwnAnts . placeFood
   where
     placeFood = placeItem (food gs) Food
     placeOwnAnts = placeItem (map point $ myAnts $ ants gs) Own
-    placeItem :: [Point] -> Agent -> ScentedWorld -> ScentedWorld
-    placeItem [] _ w = w
-    placeItem (x:xs) agent w = placeItem xs agent 
-                               $ w { unwrap = M.adjust (addAgent agent) x $ unwrap w }
+
+placeItem :: [Point] -> Agent -> ScentedWorld -> ScentedWorld
+placeItem points agent w =
+  w // [(p,t') | p <- points, t' <- return $ addScent agent diff_max $ addAgent agent $ w%!p]
 
 colBound :: ScentedWorld -> Col
-colBound = col . pointBound
+colBound = col . snd . bounds
 
 rowBound :: ScentedWorld -> Row
-rowBound = row . pointBound
+rowBound = row . snd . bounds
 
 -- Takes the modulus of the indices before accessing the array
 (%!) :: ScentedWorld -> Point -> ScentedTile
-(%!) w p = M.lookupDefault undefined (w %!% p) $ unwrap w
+(%!) w p = w ! (w %!% p)
 
 (%!%) :: ScentedWorld -> Point -> Point
 (%!%) w p = 
@@ -152,33 +160,26 @@ isWater p = (==WaterTile) . landtype . (%!p)
 neighboringPoints :: ScentedWorld -> Point -> [Point]
 neighboringPoints w p = filter (not . flip isWater w) . map (flip move p) $ [North .. West]
 
--- | Propagate all agent scents (own ants and food for now) throughout the world
--- NOTE: EDIT IF YOU WANT TO PROPAGATE MORE SCENTS
-propagateAll :: GameState -> ScentedWorld -> ScentedWorld
-propagateAll gs world = propagateMultiple points world
-  where
-    points = map point (myAnts $ ants gs) ++ food gs
+-- | The diffusion equation used to compute the diffusion value of each tile
+diffusion :: Point -> Agent -> ScentedWorld -> Double
+diffusion point agent world = 
+  let neighborTiles = map (world%!) $ neighboringPoints world point
+      thisTile = world %! point
+      diffusionvals = map (\x -> scent agent x - scent agent thisTile) neighborTiles
+      summation = sum diffusionvals
+  in scent agent thisTile + diff_rate * summation
 
--- | Given a list of agent locations and the world, propagate the
--- | scent of each agent throughout the world
-propagateMultiple :: [Point] -> ScentedWorld -> ScentedWorld
-propagateMultiple points w = foldr propagateAgentScent w points
-
--- | Propagate the scent of a single agent throughout the world
-propagateAgentScent :: Point -> ScentedWorld -> ScentedWorld
-propagateAgentScent point world =
-  let tile = world %! point
-      neighbors = neighboringPoints world point
-  in case agents tile of
-    Nothing -> world
-    Just agent -> let addedAgentScentWorld = 
-                        world { unwrap = M.adjust (addScent agent diff_max) point $ unwrap world }
-                  in foldr (propagateScent agent $ diff_rate * diff_max) addedAgentScentWorld neighbors
-
-propagateScent :: Agent -> Double -> Point -> ScentedWorld -> ScentedWorld
-propagateScent agent diffVal point world =
-  if diffVal < diff_min
-  then world
-  else let neighbors = neighboringPoints world point
-           addedScentWorld = world { unwrap = M.adjust (addScent agent diffVal) point $ unwrap world }
-       in foldr (propagateScent agent $ diffVal * diff_rate) addedScentWorld neighbors
+propagate1 :: ScentedWorld -> ScentedWorld
+propagate1 w = (w//) $ do
+  (p,t) <- assocs w
+  agent <- [Food .. Own]
+  let diffval = diffusion p agent w
+      currentval = scent agent t
+      t' = addScent agent diffval t
+   in do
+    guard $ diffval /= currentval
+    return (p,t')
+    
+propagate' :: Int -> ScentedWorld -> ScentedWorld
+propagate' 0 = id
+propagate' n = propagate' (n - 1) . propagate1

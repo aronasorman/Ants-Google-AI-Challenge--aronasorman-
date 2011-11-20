@@ -8,7 +8,7 @@ import Diffusion
 import Utilities
 
 evaluate :: ScentedTile -> Double
-evaluate tile = scentStrength Food tile - 0.5 * scentStrength Own tile
+evaluate tile = scent Food tile - 0.5 * scent Own tile
 
 getOrder :: ScentedWorld -> Ant -> Order
 getOrder world ant = let directions = [North .. West]
