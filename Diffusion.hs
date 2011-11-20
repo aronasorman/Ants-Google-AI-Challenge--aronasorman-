@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Diffusion(
                 -- types
                 Agent(..)
@@ -20,9 +21,10 @@ module Diffusion(
 
 import Data.Array 
 import Data.List
-import Data.Map (Map)
+import Data.Hashable
+import Data.HashMap.Lazy (HashMap)
 
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as M
 
 import Ants
 
@@ -38,10 +40,16 @@ diff_min = 0.001
 
 -- | Agents are items that release their own scent
 data Agent = Food | Own | Enemy | OwnHill | EnemyHill
-           deriving (Eq, Ord, Show)
+           deriving (Eq, Ord, Show, Bounded, Enum)
+
+instance Hashable Agent where
+  hash a = let agents = [Food .. EnemyHill]
+           in case findIndex (==a) agents of
+             Nothing -> 0
+             Just result -> result
 
 newtype Scent = Scent Agent
-           deriving (Ord, Show)
+           deriving (Ord, Show, Hashable)
 
 data TileType = LandTile | WaterTile
               deriving (Eq, Ord, Show)
@@ -53,13 +61,16 @@ data ScentedTile = ScentedTile {
   agents :: Maybe AgentStack
   , landtype :: TileType
   , scents :: ScentStack
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Show)
 
 type AgentStack = Agent
 
-type ScentStack = Map Scent Double
+type ScentStack = HashMap Scent Double
 
-type ScentedWorld = Array Point ScentedTile
+data ScentedWorld = SW {
+  unwrap :: HashMap Point ScentedTile
+  , pointBound :: Point
+  }
 
 -- exposed functions
                     
@@ -69,10 +80,10 @@ processWorld :: GameState -> ScentedWorld
 processWorld gs = propagateAll gs $ placeAgents gs $ initScentedWorld (world gs)
 
 scentStrength :: Agent -> ScentedTile -> Double
-scentStrength a = M.findWithDefault 0 (Scent a) . scents
+scentStrength a = M.lookupDefault 0 (Scent a) . scents
 
 getTile :: Point -> ScentedWorld -> ScentedTile
-getTile p = (!p)
+getTile p = M.lookupDefault undefined p . unwrap
 
 ---
 --- Implementation
@@ -99,7 +110,10 @@ initTile tile =
 
 -- | initialize the world, setting the land type of each tile
 initScentedWorld :: World -> ScentedWorld
-initScentedWorld w = array (bounds w) [(i, initTile . tile $ t) | (i,t) <- assocs w]
+initScentedWorld w = SW w' $ b $ bounds w
+  where
+    w' = M.fromList [(p, initTile $ tile t) | (p, t) <- assocs w]
+    b (_,max) = max
 
 -- | Place own ants and food on the scented world
 -- NOTE: EDIT IF YOU WANT TO TRACK MORE AGENTS
@@ -110,17 +124,18 @@ placeAgents gs = placeOwnAnts . placeFood
     placeOwnAnts = placeItem (map point $ myAnts $ ants gs) Own
     placeItem :: [Point] -> Agent -> ScentedWorld -> ScentedWorld
     placeItem [] _ w = w
-    placeItem (x:xs) agent w = placeItem xs agent $ w // [(x, addAgent agent $ w ! x)]
+    placeItem (x:xs) agent w = placeItem xs agent 
+                               $ w { unwrap = M.adjust (addAgent agent) x $ unwrap w }
 
 colBound :: ScentedWorld -> Col
-colBound = col . snd . bounds
+colBound = col . pointBound
 
 rowBound :: ScentedWorld -> Row
-rowBound = row . snd . bounds
+rowBound = row . pointBound
 
 -- Takes the modulus of the indices before accessing the array
 (%!) :: ScentedWorld -> Point -> ScentedTile
-(%!) w p = (w!) $ w %!% p 
+(%!) w p = M.lookupDefault undefined (w %!% p) $ unwrap w
 
 (%!%) :: ScentedWorld -> Point -> Point
 (%!%) w p = 
@@ -156,7 +171,8 @@ propagateAgentScent point world =
       neighbors = neighboringPoints world point
   in case agents tile of
     Nothing -> world
-    Just agent -> let addedAgentScentWorld = world // [(point, addScent agent diff_max (world%!point))]
+    Just agent -> let addedAgentScentWorld = 
+                        world { unwrap = M.adjust (addScent agent diff_max) point $ unwrap world }
                   in foldr (propagateScent agent $ diff_rate * diff_max) addedAgentScentWorld neighbors
 
 propagateScent :: Agent -> Double -> Point -> ScentedWorld -> ScentedWorld
@@ -164,5 +180,5 @@ propagateScent agent diffVal point world =
   if diffVal < diff_min
   then world
   else let neighbors = neighboringPoints world point
-           addedScentWorld = world // [(point, addScent agent diffVal (world %! point))]
+           addedScentWorld = world { unwrap = M.adjust (addScent agent diffVal) point $ unwrap world }
        in foldr (propagateScent agent $ diffVal * diff_rate) addedScentWorld neighbors
