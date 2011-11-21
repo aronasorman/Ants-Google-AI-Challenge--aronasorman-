@@ -6,8 +6,6 @@ Should contain no logic whatsoever.
 -}
 
 import Control.Monad (liftM)
-import Data.HashSet (HashSet)
-import qualified Data.HashSet as HS
 import Data.IORef (IORef)
 import Data.Map (Map)
 import Data.List
@@ -19,8 +17,6 @@ import Ants
 type FutureOrders = Map Point Order -- avoid two ants from stepping on each other
 
 type AntTargets = Map Ant Point -- datastructure to represent an ant and its designated target
-
-type Unexplored = HashSet Point
 
 -- | Picks the first "passable" order in a list
 -- returns Nothing if no such order exists

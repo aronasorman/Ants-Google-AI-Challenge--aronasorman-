@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns #-}
 module Diffusion(
   -- types
   Agent(..)
@@ -20,7 +20,7 @@ module Diffusion(
   ) where
 
 import Control.Monad
-import Data.Array.Diff
+import Data.Array
 import Data.List
 import Data.Map (Map)
 
@@ -147,10 +147,10 @@ rowBound = row . snd . bounds
 
 (%!%) :: ScentedWorld -> Point -> Point
 (%!%) w p = 
-  let modCol = 1 + colBound w
-      modRow = 1 + rowBound w
-      ixCol  = col p `mod` modCol
-      ixRow  = row p `mod` modRow
+  let modCol = {-# SCC "modCol" #-} 1 + colBound w
+      modRow = {-# SCC "modRow" #-} 1 + rowBound w
+      ixCol  = {-# SCC "ixCol" #-} col p `mod` modCol
+      ixRow  = {-# SCC "ixRow" #-} row p `mod` modRow
   in (ixRow, ixCol)
 
 isWater :: Point -> ScentedWorld -> Bool
