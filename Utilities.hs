@@ -23,43 +23,10 @@ type AntTargets = Map Ant Point -- datastructure to represent an ant and its des
 tryOrders :: World -> [Order] -> Maybe Order
 tryOrders w = find (passable w)
 
-allPoints :: GameParams -> [Point]
-allPoints gp = [0..row'] >>= buildPoints
-  where
-    buildPoints r = map (\c -> (r,c)) [0..col']
-    row' = rows gp
-    col' = cols gp
-
--- where will my order take me?
 orderFutureLocation :: Order -> Point
 orderFutureLocation order = let currentPosition = point . ant $ order
                                 direction' = direction order
                             in futurePosition currentPosition direction'
-
--- if no other ant will go to this point, then allow this order
-addOrder :: GameState -> FutureOrders -> Maybe Order -> FutureOrders
-addOrder gs fo Nothing = fo -- no order was issued for this ant, so do nothing
-addOrder gs fo (Just order) = 
-  let p = point $ ant order
-      otherAnts = ants gs
-      movingAnts = map ant $ M.elems fo
-      notMovingAnts = otherAnts \\ movingAnts
-  in case M.lookup p fo of
-    Just _ -> fo --some ant will already go to this point, so don't let this order push through
-    Nothing -> case willMoveToAnAnt notMovingAnts fo order of
-      Nothing -> fo
-      Just o -> M.insert p o fo
-
--- checks if order will move ant A to the location of a given ant B. If so, check
--- if ant B will move. If Ant B will not move, then return Nothing. Else, Just order
-willMoveToAnAnt :: [Ant] -> FutureOrders -> Order -> Maybe Order
-willMoveToAnAnt ants fo order =
-  let movingAnts = map ant $ M.elems fo
-      futureLocation = orderFutureLocation order
-      currentAntLocations = map (\ant' -> (ant',point ant')) ants
-  in case find (\(_,p') -> futureLocation == p') currentAntLocations of
-    Nothing -> return order
-    Just _ -> Nothing
 
 -- given my current position and a direction i want to go, tell me what position i'll end up
 futurePosition :: Point -> Direction -> Point
@@ -69,18 +36,3 @@ futurePosition (row, col) dir =
     South -> (row + 1, col)
     East -> (row, col + 1)
     West -> (row, col - 1)
-
--- gives the direction which will lead closest to the target
--- NOTE: I presume that this will be severely modified in the future, maybe
--- to use A* search and not some anive distance algorithm.
-bestDirection :: GameParams -> GameState -> Point -> Ant -> Maybe Direction
-bestDirection gp gs target source = liftM direction $
-                                    tryOrders (world gs) $ 
-                                    map (Order source) $ 
-                                    sortBy (comparing distance') [North .. West]
-                                      where
-                                        distance' = distance gp target . futurePosition (point source)
-
--- tells an ant how to go to its designated target
-movesToDirection :: GameParams -> GameState -> Ant -> Point -> Maybe Direction
-movesToDirection gp gs ant point' = bestDirection gp gs point' ant
