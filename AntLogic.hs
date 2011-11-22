@@ -20,25 +20,32 @@ nTilesAway n agent world point =
 
 gatherFoodStickTogether :: ScentedWorld -> Point -> Double
 gatherFoodStickTogether world point = let tile = getTile point world
-                                      in 8.6 * scent Food tile 
-                                         + 20 * scent EnemyHill tile 
-                                         + 0.1 * scent OwnAnt tile 
+                                      in 1.5 * scent Food tile 
+                                         + 1 * scent EnemyHill tile 
+                                         + 1.5 * scent OwnAnt tile 
                                          + 0.4 * scent EnemyAnt tile
 
-gatherAndExplore :: ScentedWorld -> Point -> Double
-gatherAndExplore world point = let tile = getTile point world
+scatterAndExplore :: ScentedWorld -> Point -> Double
+scatterAndExplore world point = let tile = getTile point world
                                in 1 * scent Food tile 
-                                  + 2 * scent EnemyHill tile 
-                                  + 0.1 * nTilesAway 4 OwnAnt world point
-                                  - 3.5 * nTilesAway 2 OwnAnt world point
-                                  + 0.4 * scent EnemyAnt tile
+                                  + 1 * scent EnemyHill tile
+                                  - 0.2 * scent OwnAnt tile
+
+attackTogether :: ScentedWorld -> Point -> Double
+attackTogether world point = let tile = getTile point world
+                             in 3.5 * scent OwnAnt tile
+                                + 1 * scent EnemyHill tile
+                                + 1 * scent EnemyAnt tile
 
 evaluate :: ScentedWorld -> Point -> Point -> Double
-evaluate world currentpoint evaledpoint = let currenttile = getTile currentpoint world
-                                              evaledtile = getTile evaledpoint world
-                                          in if nTilesAway 3 OwnAnt world currentpoint > 0
-                                             then gatherFoodStickTogether world evaledpoint
-                                             else gatherAndExplore world evaledpoint
+evaluate world currentpoint evaledpoint = 
+  let currenttile = getTile currentpoint world
+      evaledtile = getTile evaledpoint world
+  in if nTilesAway 4 EnemyAnt world currentpoint > 0
+     then attackTogether world evaledpoint
+     else if nTilesAway 1 OwnAnt world currentpoint > 0
+          then scatterAndExplore world evaledpoint
+          else gatherFoodStickTogether world evaledpoint
 
 passable' :: ScentedWorld -> Order -> Bool
 passable' world order = let newPoint = move (direction order) (pointAnt $ ant order)
