@@ -23,6 +23,8 @@ module Ants
   , isEnemy's
   , myAnts
   , enemyAnts
+  , myHills
+  , enemyHills
   , passable
   , distance
   , timeRemaining

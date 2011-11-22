@@ -9,7 +9,6 @@ module Diffusion(
     -- constants
   , diff_rate
   , diff_max
-  , diff_min
     
     -- functions
   , initScentedWorld
@@ -26,22 +25,24 @@ import Data.Map (Map)
 
 import qualified Data.Map as M
   
-import Ants
+import Ants hiding ((%!), (%!%), Water)
+
+import qualified Ants as Ants
 
 -- CONSTANTS
 
-diff_rate = 0.25
+diff_rate = 0.2
 
-diff_max = 200
+diff_max = 300
 
-diff_min = 0.001 :: ScentStrength
+diff_min = 0.001
 
-propagate_length = 9
+propagate_length = 15
 
 -- TYPES
 
 -- | Agents are items that release their own scent
-data Agent = Food | Own | Enemy | OwnHill | EnemyHill
+data Agent = Water | Food | OwnAnt | EnemyAnt | OwnHill | EnemyHill
            deriving (Eq, Ord, Show, Enum, Bounded)
 
 newtype Scent = Scent Agent
@@ -55,7 +56,6 @@ instance Eq Scent where
 
 data ScentedTile = ScentedTile {
   agents :: Maybe AgentStack
-  , landtype :: TileType
   , scents :: ScentStack
   } deriving (Eq, Ord, Show)
 
@@ -78,7 +78,7 @@ initScentedWorld w = array (bounds w) [(p,initTile $ tile t) | (p,t) <- assocs w
 
 -- | remove the agents from a previous turn, and place the location of each agent
 resetWorld :: GameState -> ScentedWorld -> ScentedWorld
-resetWorld gs = placeAgents gs . clearAgents
+resetWorld gs = placeAgents gs
                 
 -- | propagate the scent of each agent
 propagate :: ScentedWorld -> ScentedWorld
@@ -99,7 +99,7 @@ getTile = flip (%!)
 ---
 --- Implementation
 ---
-    
+
 addAgent :: Agent -> ScentedTile -> ScentedTile
 addAgent agent tile = tile { agents = Just agent }
 
@@ -120,20 +120,22 @@ clearAgents w = w // [(p, clearAgent t) | (p,t) <- assocs w]
 initTile :: Tile -> ScentedTile
 initTile tile =
   case tile of
-    Water -> ScentedTile Nothing WaterTile M.empty
-    _ -> ScentedTile Nothing LandTile M.empty
+    Ants.Water -> ScentedTile (Just Water) M.empty
+    _ -> ScentedTile Nothing M.empty
 
 -- | Place own ants and food, plus their scents,  on the scented world
 -- NOTE: EDIT IF YOU WANT TO TRACK MORE AGENTS
 placeAgents :: GameState -> ScentedWorld -> ScentedWorld
-placeAgents gs = placeOwnAnts . placeFood
+placeAgents gs = placeOwnHills . placeEnemyHills . placeOwnAnts . placeFood
   where
     placeFood = placeItem (food gs) Food
-    placeOwnAnts = placeItem (map point $ myAnts $ ants gs) Own
+    placeOwnHills = placeItem (map pointHill $ myHills $ hills gs) OwnHill
+    placeEnemyHills = placeItem (map pointHill $ enemyHills $ hills gs) EnemyHill
+    placeOwnAnts = placeItem (map pointAnt $ myAnts $ ants gs) OwnAnt
 
 placeItem :: [Point] -> Agent -> ScentedWorld -> ScentedWorld
 placeItem points agent w =
-  w // [(p,t') | p <- points, t' <- return $ addScent agent diff_max $ addAgent agent $ w%!p]
+  w // [(p,t') | p <- points, let t' = addScent agent diff_max $ addAgent agent $ w%!p]
 
 colBound :: ScentedWorld -> Col
 colBound = col . snd . bounds
@@ -153,12 +155,19 @@ rowBound = row . snd . bounds
       ixRow  = {-# SCC "ixRow" #-} row p `mod` modRow
   in (ixRow, ixCol)
 
-isWater :: Point -> ScentedWorld -> Bool
-isWater p = (==WaterTile) . landtype . (%!p)
-
 -- | Returns all neighboring points that aren't water
 neighboringPoints :: ScentedWorld -> Point -> [Point]
-neighboringPoints w p = filter (not . flip isWater w) . map (flip move p) $ [North .. West]
+neighboringPoints w p = map (flip move p) $ [North .. West]
+                        
+lambda :: Maybe Agent -> Double
+lambda Nothing = 1
+lambda (Just agent) =
+  M.findWithDefault 1 agent $ M.fromList [(Food, 0.8)
+                                          , (EnemyAnt, 1.11)
+                                          , (EnemyHill, 1.3)
+                                          , (Water, 0)
+                                          ]
+    
 
 -- | The diffusion equation used to compute the diffusion value of each tile
 diffusion :: Point -> Agent -> ScentedWorld -> Double
@@ -166,19 +175,21 @@ diffusion point agent world =
   let neighborTiles = map (world%!) $ neighboringPoints world point
       thisTile = world %! point
       diffusionvals = map (\x -> scent agent x - scent agent thisTile) neighborTiles
-      summation = sum diffusionvals
-  in scent agent thisTile + diff_rate * summation
+      summation = sum diffusionvals 
+  in (lambda $ agents thisTile) * (scent agent thisTile + diff_rate * summation)
 
 propagate1 :: ScentedWorld -> ScentedWorld
 propagate1 w = (w//) $ do
   (p,t) <- assocs w
-  agent <- [Food .. Own]
-  let diffval = diffusion p agent w
-      currentval = scent agent t
-      t' = addScent agent diffval t
-   in do
-    guard $ diffval > currentval
-    return (p,t')
+  return $ let agents' = [Food .. EnemyHill]
+               addScent' tile agent = case agents tile of 
+                 Nothing -> addScent agent (diffusion p agent w) tile
+                 (Just current_agent) -> if current_agent == agent
+                                         then addScent agent diff_max tile
+                                         else addScent agent (diffusion p agent w) tile
+               addScents tile = foldl' addScent' tile agents'
+               t' = addScents t
+           in (p,t')
     
 propagate' :: Int -> ScentedWorld -> ScentedWorld
 propagate' 0 = id

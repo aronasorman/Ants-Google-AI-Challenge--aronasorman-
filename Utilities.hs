@@ -24,7 +24,7 @@ tryOrders :: World -> [Order] -> Maybe Order
 tryOrders w = find (passable w)
 
 orderFutureLocation :: Order -> Point
-orderFutureLocation order = let currentPosition = point . ant $ order
+orderFutureLocation order = let currentPosition = pointAnt . ant $ order
                                 direction' = direction order
                             in futurePosition currentPosition direction'
 

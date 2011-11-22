@@ -8,10 +8,10 @@ import Diffusion
 import Utilities
 
 evaluate :: ScentedTile -> Double
-evaluate tile = scent Food tile - 0.3 * scent Own tile
+evaluate tile = scent Food tile
 
 getOrder :: ScentedWorld -> Ant -> Order
 getOrder world ant = let directions = [North .. West]
-                         currentPoint = point ant
-                         eval = evaluate . flip getTile world . futurePosition currentPoint 
+                         currentPoint = pointAnt ant
+                         eval = evaluate . (\x -> getTile x world) . (\x -> move x $ pointAnt ant)
                      in Order ant $ maximumBy (comparing eval) directions
