@@ -14,10 +14,6 @@ import qualified Data.Map as M
 
 import Ants
 
-type FutureOrders = Map Point Order -- avoid two ants from stepping on each other
-
-type AntTargets = Map Ant Point -- datastructure to represent an ant and its designated target
-
 -- | Picks the first "passable" order in a list
 -- returns Nothing if no such order exists
 tryOrders :: World -> [Order] -> Maybe Order

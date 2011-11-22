@@ -6,29 +6,25 @@ module FutureOrders(
   , (??)
   ) where
 
-import Data.Set (Set)
+import Data.Map (Map)
 
-import qualified Data.Set as S
+import qualified Data.Map as M
 
 import Ants
 import Utilities
 
-type FutureOrders = Set Order
-
-instance Eq Order where
-  a == b = orderFutureLocation a == orderFutureLocation b
-
-instance Ord Order where
-  compare a b = orderFutureLocation a `compare` orderFutureLocation b
+type FutureOrders = Map Point Order
 
 addOrder :: Order -> FutureOrders -> FutureOrders
-addOrder order = S.insert order
+addOrder order fo = M.insert loc order fo
+  where
+    loc = orderFutureLocation order
 
 empty :: FutureOrders
-empty = S.empty
+empty = M.empty
 
 finalize :: FutureOrders -> [Order]
-finalize = S.toList
+finalize = map snd . M.toList
 
 (??) :: Order -> FutureOrders -> Bool
-(??) = S.member
+(??) order = M.member $ orderFutureLocation order
