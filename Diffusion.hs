@@ -3,8 +3,8 @@ module Diffusion(
   -- types
   Agent(..)
   , Scent
-  , ScentedTile
-  , ScentedWorld
+  , ScentedTile(..)
+  , ScentedWorld(..)
     
     -- constants
   , diff_rate
@@ -16,6 +16,7 @@ module Diffusion(
   , propagate
   , scent
   , getTile
+  , neighboringPoints
   ) where
 
 import Control.Monad
@@ -31,13 +32,13 @@ import qualified Ants as Ants
 
 -- CONSTANTS
 
-diff_rate = 0.25
+diff_rate = 0.35
 
-diff_max = 300
+diff_max = 30
 
 diff_min = 0.0001
 
-propagate_length = 25
+propagate_length = 17
 
 -- TYPES
 
@@ -105,7 +106,7 @@ addAgent agent tile = tile { agents = Just agent }
 
 addScent :: Agent -> Double -> ScentedTile -> ScentedTile
 addScent agent strength tile = let scent = scents tile
-                               in tile { scents = M.insert (Scent agent) strength scent }
+                               in tile { scents = M.insertWith max (Scent agent) strength scent }
 
 clearScent :: ScentedTile -> ScentedTile
 clearScent tile = tile { scents = M.empty }
@@ -131,6 +132,7 @@ placeAgents gs = placeOwnHills . placeEnemyHills . placeOwnAnts . placeFood
     placeFood = placeItem (food gs) Food
     placeOwnHills = placeItem (map pointHill $ myHills $ hills gs) OwnHill
     placeEnemyHills = placeItem (map pointHill $ enemyHills $ hills gs) EnemyHill
+    placeEnemyAnts = placeItem (map pointAnt $ enemyAnts $ ants gs) EnemyAnt
     placeOwnAnts = placeItem (map pointAnt $ myAnts $ ants gs) OwnAnt
 
 placeItem :: [Point] -> Agent -> ScentedWorld -> ScentedWorld
@@ -163,7 +165,7 @@ lambda :: Maybe Agent -> Double
 lambda Nothing = 1
 lambda (Just agent) =
   M.findWithDefault 1 agent $ M.fromList [(Food, 0.8)
-                                          , (OwnAnt, 0)
+                                          , (OwnAnt, 1.2)
                                           , (EnemyAnt, 1.11)
                                           , (EnemyHill, 1.3)
                                           , (Water, 0)

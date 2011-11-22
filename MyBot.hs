@@ -1,6 +1,7 @@
 module Main where
 
 import Data.IORef
+import Data.List
 
 import AntLogic
 import Ants
@@ -13,7 +14,7 @@ doTurn worldref turnRef gp gs = do
   plainworld <- if turn == 0 then return $ initScentedWorld (world gs) else readIORef worldref
   scentedworld <- return $ propagate $ resetWorld gs plainworld
   ownAnts <- return $ myAnts $ ants gs
-  orders <- return $ finalize $ foldl (getOrder scentedworld) empty ownAnts
+  orders <- return $ finalize $ foldl' (getOrder scentedworld) empty ownAnts
   
   -- bookkeeping
   modifyIORef turnRef (+1) 
