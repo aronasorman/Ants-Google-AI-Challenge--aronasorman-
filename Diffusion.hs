@@ -31,13 +31,13 @@ import qualified Ants as Ants
 
 -- CONSTANTS
 
-diff_rate = 0.2
+diff_rate = 0.25
 
 diff_max = 300
 
-diff_min = 0.001
+diff_min = 0.0001
 
-propagate_length = 15
+propagate_length = 25
 
 -- TYPES
 
@@ -163,6 +163,7 @@ lambda :: Maybe Agent -> Double
 lambda Nothing = 1
 lambda (Just agent) =
   M.findWithDefault 1 agent $ M.fromList [(Food, 0.8)
+                                          , (OwnAnt, 0)
                                           , (EnemyAnt, 1.11)
                                           , (EnemyHill, 1.3)
                                           , (Water, 0)

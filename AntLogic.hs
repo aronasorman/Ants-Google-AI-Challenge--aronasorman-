@@ -9,7 +9,10 @@ import FutureOrders
 import Utilities
 
 evaluate :: ScentedTile -> Double
-evaluate tile = scent Food tile + scent EnemyHill tile + 0.4 * scent EnemyAnt tile
+evaluate tile = 8.6 * scent Food tile 
+                + scent EnemyHill tile 
+                + 0.01 * scent OwnAnt tile 
+                + 0.4 * scent EnemyAnt tile
 
 getOrder :: ScentedWorld -> FutureOrders -> Ant -> FutureOrders
 getOrder world fo ant = let directions = [North .. West]
