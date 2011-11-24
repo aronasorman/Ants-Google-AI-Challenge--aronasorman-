@@ -31,11 +31,11 @@ import Ants hiding ((%!), (%!%))
   
 -- CONSTANTS
 
-diff_rate = 0.1
+diff_rate = 0.01
 
-diff_max = 100
+diff_max = 1000
 
-diff_min = 0.001
+diff_min = 0.0001
 
 propagate_length = 7
 
@@ -112,10 +112,11 @@ initTile tile =
 -- NOTE: EDIT IF YOU WANT TO TRACK MORE AGENTS
 placeAgents :: GameState -> MWorld s -> ST s ()
 placeAgents gs mworld = do
-  placeOwnHills mworld
   placeEnemyHills mworld 
+  placeEnemyAnts mworld
   placeOwnAnts mworld 
   placeFood mworld
+  placeOwnHills mworld
   where
     placeFood = placeItem (food gs) Food
     placeOwnHills = placeItem (map pointHill $ myHills $ hills gs) OwnHill
