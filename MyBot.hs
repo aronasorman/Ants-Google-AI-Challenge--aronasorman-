@@ -5,20 +5,20 @@ import Data.List
 
 import AntLogic
 import Ants
-import Diffusion
+import DiffusionM
 import FutureOrders
 
 doTurn :: IORef ScentedWorld -> IORef Int -> GameParams -> GameState -> IO [Order]
 doTurn worldref turnRef gp gs = do
   turn <- readIORef turnRef
-  plainworld <- if turn == 0 then return $ initScentedWorld (world gs) else readIORef worldref
-  scentedworld <- return $ propagate $ resetWorld gs plainworld
+  world <- if turn == 0 then return $ initScentedWorld (world gs) else readIORef worldref
+  scentedworld <- return $ propagate $ resetWorld gs world
   ownAnts <- return $ myAnts $ ants gs
   orders <- return $ finalize $ foldl' (getOrder scentedworld) empty ownAnts
   
   -- bookkeeping
   modifyIORef turnRef (+1) 
-  writeIORef worldref plainworld
+  writeIORef worldref world
   
   return orders
 

@@ -21,6 +21,7 @@ module Diffusion(
 
 import Control.Monad
 import Data.Array
+import Data.Array.ST
 import Data.List
 import Data.Map (Map)
 
@@ -38,7 +39,7 @@ diff_max = 30
 
 diff_min = 0.0001
 
-propagate_length = 17
+propagate_length = 13
 
 -- TYPES
 
@@ -66,6 +67,8 @@ type ScentStack = Map Scent ScentStrength
 
 type ScentedWorld = Array Point ScentedTile
 
+type MWorld s = STArray s Point ScentedTile
+
 type Lambda = Double
 
 type ScentStrength = Double
@@ -74,7 +77,7 @@ type ScentStrength = Double
                      
 -- | initialize the world, setting the land type of each tile
 initScentedWorld :: World -> ScentedWorld
-initScentedWorld w = array (bounds w) [(p,initTile $ tile t) | (p,t) <- assocs w]
+initScentedWorld w = listArray (bounds w) [initTile $ tile t | (p,t) <- assocs w]
 
 
 -- | remove the agents from a previous turn, and place the location of each agent
@@ -137,7 +140,7 @@ placeAgents gs = placeOwnHills . placeEnemyHills . placeOwnAnts . placeFood
 
 placeItem :: [Point] -> Agent -> ScentedWorld -> ScentedWorld
 placeItem points agent w =
-  w // [(p,t') | p <- points, let t' = addScent agent diff_max $ addAgent agent $ w%!p]
+  w // [(p,t') | p <- points, let t' = addScent agent diff_max $ addAgent agent $ w ! p]
 
 colBound :: ScentedWorld -> Col
 colBound = col . snd . bounds
@@ -162,12 +165,10 @@ neighboringPoints :: ScentedWorld -> Point -> [Point]
 neighboringPoints w p = map (flip move p) $ [North .. West]
                         
 lambda :: Maybe Agent -> Double
-lambda Nothing = 1
+lambda Nothing = 1 -- land
 lambda (Just agent) =
   M.findWithDefault 1 agent $ M.fromList [(Food, 0.8)
                                           , (OwnAnt, 1.2)
-                                          , (EnemyAnt, 1.11)
-                                          , (EnemyHill, 1.3)
                                           , (Water, 0)
                                           ]
     
