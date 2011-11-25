@@ -26,18 +26,17 @@ import Data.Map (Map)
 import Data.List
 
 import qualified Data.Map as M
+import qualified Ants as Ants
 
-import Ants hiding ((%!), (%!%))
+import Ants hiding ((%!), (%!%),Water)
   
 -- CONSTANTS
 
-diff_rate = 0.01
+diff_rate = 0.25
 
-diff_max = 1000
+diff_max = 50
 
-diff_min = 0.0001
-
-propagate_length = 7
+propagate_length = 13
 
 -- TYPES
 
@@ -81,6 +80,12 @@ addScent agent strength tile = let scent = scents tile
 clearScent :: ScentedTile -> ScentedTile
 clearScent tile = tile { scents = M.empty }
 
+clearScents :: MWorld s -> ST s ()
+clearScents w = do
+  assocs <- getAssocs w
+  forM_ assocs $ \(p,t) -> do
+    writeArray w p $ clearScent t
+
 clearAgent :: ScentedTile -> ScentedTile
 clearAgent tile = tile { agents = Nothing }
 
@@ -98,6 +103,7 @@ initScentedWorld w = listArray (bounds w) [initTile $ tile t | (p,t) <- assocs w
 resetWorld :: GameState -> ScentedWorld -> ScentedWorld
 resetWorld gs w = runSTArray $ do
   mworld <- thaw w
+  clearAgents mworld
   placeAgents gs mworld
   return mworld
 
@@ -151,14 +157,17 @@ rowBound = row . snd . bounds
 
 -- | Returns all neighboring points that aren't water
 neighboringPoints :: ScentedWorld -> Point -> [Point]
-neighboringPoints w p = map (flip move p) $ [North .. West]
+neighboringPoints w p = filter notWater $ map (flip move p) $ [North .. West]
+  where
+    notWater = not . (==(Just Water)) . agents . (w%!)
                         
 lambda :: Maybe Agent -> Double
 lambda Nothing = 1 -- land
 lambda (Just agent) =
-  M.findWithDefault 1 agent $ M.fromList [(Food, 0.8)
+  M.findWithDefault 1 agent $ M.fromList [(Food, 1)
                                           , (OwnAnt, 1.2)
-                                          , (DiffusionM.Water, 0)
+                                          , (Water, -999)
+                                          , (EnemyAnt, 0.5)
                                           ]
     
 
@@ -172,14 +181,11 @@ diffusion point agent world =
   in (lambda $ agents thisTile) * (scent agent thisTile + diff_rate * summation)
      
 scent :: Agent -> ScentedTile -> ScentStrength
-scent agent tile = let val = M.findWithDefault 0 (Scent agent) $ scents tile
-                   in if val <= diff_min
-                      then 0
-                      else val
+scent agent tile = M.findWithDefault 0 (Scent agent) $ scents tile
 
 propagate :: ScentedWorld -> ScentedWorld
 propagate w = runSTArray $ do
-  mworld <- thaw w
+  mworld <- unsafeThaw w
   forM_ [1..propagate_length] $ \_ ->
     propagate1 mworld
   return mworld

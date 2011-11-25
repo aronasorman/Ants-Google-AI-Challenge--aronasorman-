@@ -11,14 +11,13 @@ import FutureOrders
 doTurn :: IORef ScentedWorld -> IORef Int -> GameParams -> GameState -> IO [Order]
 doTurn worldref turnRef gp gs = do
   turn <- readIORef turnRef
-  world <- if turn == 0 then return $ initScentedWorld (world gs) else readIORef worldref
+  world <- return $ initScentedWorld (world gs)
   scentedworld <- return $ propagate $ resetWorld gs world
   ownAnts <- return $ myAnts $ ants gs
   orders <- return $ finalize $ foldl' (getOrder scentedworld) empty ownAnts
   
   -- bookkeeping
   modifyIORef turnRef (+1) 
-  writeIORef worldref world
   
   return orders
 
