@@ -32,11 +32,11 @@ import Ants hiding ((%!), (%!%),Water)
   
 -- CONSTANTS
 
-diff_rate = 0.25
+diff_rate = 0.2
 
 diff_max = 50
 
-propagate_length = 13
+propagate_length = 17
 
 -- TYPES
 
@@ -75,7 +75,7 @@ addAgent agent tile = tile { agents = Just agent }
 
 addScent :: Agent -> Double -> ScentedTile -> ScentedTile
 addScent agent strength tile = let scent = scents tile
-                               in tile { scents = M.insertWith max (Scent agent) strength scent }
+                               in tile { scents = M.insert (Scent agent) strength scent }
 
 clearScent :: ScentedTile -> ScentedTile
 clearScent tile = tile { scents = M.empty }
@@ -118,11 +118,10 @@ initTile tile =
 -- NOTE: EDIT IF YOU WANT TO TRACK MORE AGENTS
 placeAgents :: GameState -> MWorld s -> ST s ()
 placeAgents gs mworld = do
-  placeEnemyHills mworld 
   placeEnemyAnts mworld
   placeOwnAnts mworld 
   placeFood mworld
-  placeOwnHills mworld
+  placeEnemyHills mworld 
   where
     placeFood = placeItem (food gs) Food
     placeOwnHills = placeItem (map pointHill $ myHills $ hills gs) OwnHill
@@ -164,10 +163,10 @@ neighboringPoints w p = filter notWater $ map (flip move p) $ [North .. West]
 lambda :: Maybe Agent -> Double
 lambda Nothing = 1 -- land
 lambda (Just agent) =
-  M.findWithDefault 1 agent $ M.fromList [(Food, 1)
-                                          , (OwnAnt, 1.2)
-                                          , (Water, -999)
-                                          , (EnemyAnt, 0.5)
+  M.findWithDefault 1 agent $ M.fromList [(Food, 1.1)
+                                          , (OwnAnt, 0.8)
+                                          , (Water, -0.1)
+                                          , (EnemyAnt, 1.11)
                                           ]
     
 
@@ -194,7 +193,7 @@ propagate1 :: MWorld s -> ST s ()
 propagate1 modworld = do
   referenceworld <- freeze modworld
   points <- liftM (map fst) $ getAssocs modworld
-  agents' <- return $ [Food .. EnemyHill]
+  agents' <- return $ [Food,OwnAnt,EnemyAnt,EnemyHill]
   forM_ points $ \p -> do
     t <- return $ referenceworld ! p
     let addScent' :: ScentedTile -> Agent -> ScentedTile

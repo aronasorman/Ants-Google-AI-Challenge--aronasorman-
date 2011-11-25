@@ -31,7 +31,15 @@ attackTogether world tile = 3.5 * scent OwnAnt tile
                             + 1 * scent EnemyAnt tile
                             + 1 * scent OwnAnt tile
                             
-evaluate world current evaled = scatterAndExplore world evaled
+evaluate world current evaled = if scent EnemyHill current > 0
+                                   then scent EnemyHill evaled 
+                                else if scent EnemyAnt current > 0 
+                                     then if scent OwnAnt current > 4
+                                          then scent EnemyAnt evaled
+                                          else scent OwnAnt evaled
+                                     else if scent Food current > 0 
+                                          then scent Food evaled
+                                          else -0.01 * scent OwnHill evaled
            
 passable' :: ScentedWorld -> Order -> Bool
 passable' world order = let newPoint = move (direction order) (pointAnt $ ant order)
@@ -39,23 +47,22 @@ passable' world order = let newPoint = move (direction order) (pointAnt $ ant or
                            
 -- | Picks the first "passable" order in a list
 -- returns Nothing if no such order exists
-tryOrders :: ScentedWorld -> [Order] -> Maybe Order
-tryOrders w = find (passable' w)
+tryOrders :: FutureOrders -> World -> [Order] -> Maybe Order
+tryOrders fo w = find valid
+  where
+    valid order = not (order ?? fo) && passable w order
 
-getOrder :: ScentedWorld -> FutureOrders -> Ant -> FutureOrders
-getOrder world fo ant = let directions = [North .. West]
-                            currentPoint = pointAnt ant
-                            currentTile = getTile currentPoint world
-                            eval = {-# SCC "eval" #-} evaluate world currentTile 
-                                                      . flip getTile world 
-                                                      . flip move currentPoint
-                            order = tryOrders world
-                                    $ map (Order ant) 
-                                    $ reverse 
-                                    $ sortBy (comparing eval) directions
-                        in case order of
-                          Nothing -> fo
-                          Just thereisorder -> case thereisorder ?? fo of
-                            True -> fo
-                            False -> addOrder thereisorder fo
-                            
+getOrder :: World -> ScentedWorld -> FutureOrders -> Ant -> FutureOrders
+getOrder oworld world fo ant = let directions = [North .. West]
+                                   currentPoint = pointAnt ant
+                                   currentTile = getTile currentPoint world
+                                   eval = {-# SCC "eval" #-} evaluate world currentTile 
+                                                             . flip getTile world 
+                                                             . flip move currentPoint
+                                   order = tryOrders fo oworld
+                                           $ map (Order ant) 
+                                           $ reverse 
+                                           $ sortBy (comparing eval) directions
+                               in case order of
+                                 Nothing -> fo
+                                 Just o -> addOrder o fo
