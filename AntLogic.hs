@@ -15,7 +15,7 @@ evaluate world current evaled = if scent EnemyHill current > 0
                                           else scent OwnAnt evaled
                                      else if scent Food current > 0 
                                           then scent Food evaled
-                                          else -0.01 * scent OwnHill evaled
+                                          else scent Unexplored evaled
            
 -- | Picks the first "passable" order in a list
 -- returns Nothing if no such order exists

@@ -19,7 +19,7 @@ doTurn turnRef unexRef gp gs = do
   orders <- return $ finalize $ foldl' (getOrder (world gs) scentedworld) (empty gs) ownAnts
   
   -- bookkeeping
-  modifyIORef unexRef (updateUnexplored (world gs))
+  writeIORef unexRef $ updateUnexplored (world gs) unex
   modifyIORef turnRef (+1) 
   
   return orders

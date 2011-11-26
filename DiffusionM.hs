@@ -197,7 +197,7 @@ propagate1 :: World -> MWorld s -> ST s ()
 propagate1 world modworld = do
   referenceworld <- freeze modworld
   points <- liftM (map fst) $ getAssocs modworld
-  agents' <- return $ [Food,OwnAnt,EnemyAnt,EnemyHill]
+  agents' <- return $ [Unexplored,Food,OwnAnt,EnemyAnt,EnemyHill]
   forM_ points $ \p -> do
     t <- return $ referenceworld ! p
     let addScent' :: ScentedTile -> Agent -> ScentedTile
@@ -208,7 +208,8 @@ propagate1 world modworld = do
                                   then addScent agent diff_max tile
                                   else addScent agent (diffusion p agent referenceworld) tile
         addScents' t = foldl addScent' t agents'
-      in when (visible $ world ! p) $ writeArray modworld p $ addScents' t
+      in when (visible $ world ! p) 
+         $ writeArray modworld p $ addScents' t
 
 getTile :: Point -> ScentedWorld -> ScentedTile
 getTile = flip (%!)

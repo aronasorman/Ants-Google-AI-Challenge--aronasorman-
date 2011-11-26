@@ -29,7 +29,7 @@ initUnexplored w = runSTUArray $ do
   
 updateUnexplored :: World -> Unexplored -> Unexplored
 updateUnexplored w unex = runSTUArray $ do
-  mworld <- unsafeThaw unex
+  mworld <- thaw unex
   forM_ (assocs w) $ \(p,t) -> do
     if visible t
       then reset p mworld
