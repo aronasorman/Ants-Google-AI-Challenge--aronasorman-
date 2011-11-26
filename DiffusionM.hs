@@ -25,10 +25,12 @@ import Data.Array.ST
 import Data.Map (Map)
 import Data.List
 
+import qualified Data.Array.Unboxed as U
 import qualified Data.Map as M
 import qualified Ants as Ants
 
 import Ants hiding ((%!), (%!%),Water)
+import Unexplored
   
 -- CONSTANTS
 
@@ -38,10 +40,12 @@ diff_max = 50
 
 propagate_length = 11
 
+min_turn_unseen = 7
+
 -- TYPES
 
 -- | Agents are items that release their own scent
-data Agent = Water | Food | OwnAnt | EnemyAnt | OwnHill | EnemyHill
+data Agent = Water | Unexplored | Food | OwnAnt | EnemyAnt | OwnHill | EnemyHill
            deriving (Eq, Ord, Show, Enum, Bounded)
 
 newtype Scent = Scent Agent
@@ -60,13 +64,11 @@ data ScentedTile = ScentedTile {
 
 type AgentStack = Agent
 
-type ScentStack = Map Scent ScentStrength
+type ScentStack = Map Scent Double
 
 type ScentedWorld = Array Point ScentedTile
 
 type MWorld s = STArray s Point ScentedTile
-
-type ScentStrength = Double
 
 -- Implementation
                      
@@ -100,11 +102,11 @@ clearAgents w = do
 initScentedWorld :: World -> ScentedWorld
 initScentedWorld w = listArray (bounds w) [initTile $ tile t | (p,t) <- assocs w]
 
-resetWorld :: GameState -> ScentedWorld -> ScentedWorld
-resetWorld gs w = runSTArray $ do
+resetWorld :: GameState -> Unexplored -> ScentedWorld -> ScentedWorld
+resetWorld gs unex w = runSTArray $ do
   mworld <- thaw w
   clearAgents mworld
-  placeAgents gs mworld
+  placeAgents gs unex mworld
   return mworld
 
 -- | Initialize a scented tile's landtype based on a Tile. (initialize if water or land)
@@ -116,8 +118,9 @@ initTile tile =
   
 -- | Place own ants and food, plus their scents,  on the scented world
 -- NOTE: EDIT IF YOU WANT TO TRACK MORE AGENTS
-placeAgents :: GameState -> MWorld s -> ST s ()
-placeAgents gs mworld = do
+placeAgents :: GameState -> Unexplored -> MWorld s -> ST s ()
+placeAgents gs unex mworld = do
+  placeUnexplored mworld
   placeEnemyAnts mworld
   placeOwnAnts mworld 
   placeFood mworld
@@ -128,12 +131,13 @@ placeAgents gs mworld = do
     placeEnemyHills = placeItem (map pointHill $ enemyHills $ hills gs) EnemyHill
     placeEnemyAnts = placeItem (map pointAnt $ enemyAnts $ ants gs) EnemyAnt
     placeOwnAnts = placeItem (map pointAnt $ myAnts $ ants gs) OwnAnt
+    placeUnexplored = placeItem (map fst $ filter ((>=min_turn_unseen) . snd) $ U.assocs unex) Unexplored
 
 placeItem :: [Point] -> Agent -> MWorld s -> ST s ()
 placeItem points agent w = do
   forM_ points $ \p -> do
     t <- readArray w p
-    t' <- return $ addAgent agent t
+    t' <- return $ addScent agent diff_max $ addAgent agent t
     writeArray w p t'
      
 colBound :: ScentedWorld -> Col
@@ -179,18 +183,18 @@ diffusion point agent world =
       summation = sum diffusionvals 
   in (lambda $ agents thisTile) * (scent agent thisTile + diff_rate * summation)
      
-scent :: Agent -> ScentedTile -> ScentStrength
+scent :: Agent -> ScentedTile -> Double
 scent agent tile = M.findWithDefault 0 (Scent agent) $ scents tile
 
-propagate :: ScentedWorld -> ScentedWorld
-propagate w = runSTArray $ do
+propagate :: World -> ScentedWorld -> ScentedWorld
+propagate world w = runSTArray $ do
   mworld <- unsafeThaw w
   forM_ [1..propagate_length] $ \_ ->
-    propagate1 mworld
+    propagate1 world mworld
   return mworld
 
-propagate1 :: MWorld s -> ST s ()
-propagate1 modworld = do
+propagate1 :: World -> MWorld s -> ST s ()
+propagate1 world modworld = do
   referenceworld <- freeze modworld
   points <- liftM (map fst) $ getAssocs modworld
   agents' <- return $ [Food,OwnAnt,EnemyAnt,EnemyHill]
@@ -204,8 +208,7 @@ propagate1 modworld = do
                                   then addScent agent diff_max tile
                                   else addScent agent (diffusion p agent referenceworld) tile
         addScents' t = foldl addScent' t agents'
-      in do
-      writeArray modworld p $ addScents' t
+      in when (visible $ world ! p) $ writeArray modworld p $ addScents' t
 
 getTile :: Point -> ScentedWorld -> ScentedTile
 getTile = flip (%!)
