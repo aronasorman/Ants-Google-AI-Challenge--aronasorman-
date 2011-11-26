@@ -1,3 +1,6 @@
+{-|
+Records the last time each cell was last seen
+|-}
 module Unexplored where
 
 import Control.Monad
@@ -12,27 +15,24 @@ type Unexplored = UArray Point Int8
 
 type MUnexplored s = STUArray s Point Int8
 
-highestUnexplored :: 
-
 initUnexplored :: GameState -> World -> Unexplored
 initUnexplored gs w = runSTUArray $ do 
-  mworld <- newArray (bounds w) 1
-  prioritizeHills gs mworld
+  mworld <- newArray (bounds w) 0
   return mworld
 
-prioritize :: Point -> MUnexplored s -> ST s ()
-prioritize point mworld = do 
-  oldVal <- readArray mworld point
-  writeArray mworld point $ oldVal + 5
+reset :: Point -> MUnexplored s -> ST s ()
+reset p w = writeArray w p 0
 
-prioritizeHills :: GameParams -> MUnexplored s -> ST s ()
-prioritizeHills gs w = do 
-  forM_ (hills gs) $ \hill -> do
-    point <- return $ pointHill hill
-    undefined
+increment :: Point -> MUnexplored s  -> ST s ()
+increment p w = do
+  oldval <- readArray w p
+  writeArray w p (oldval + 1)
 
-advance :: MUnexplored s -> ST s ()
-advance w = do 
-  bounds <- getAssocs w
-  forM_ bounds $ \(p,i) -> do
-  writeArray w p (i + 1)
+updateUnexplored :: World -> Unexplored -> Unexplored
+updateUnexplored w unex = runSTUArray $ do
+  mworld <- unsafeThaw unex
+  forM_ (assocs w) $ \(p,t) -> do
+    if visible t
+      then reset p mworld
+      else increment p mworld
+  return mworld
