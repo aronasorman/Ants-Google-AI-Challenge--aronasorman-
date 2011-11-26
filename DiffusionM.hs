@@ -36,7 +36,7 @@ diff_rate = 0.2
 
 diff_max = 50
 
-propagate_length = 17
+propagate_length = 11
 
 -- TYPES
 
@@ -133,7 +133,7 @@ placeItem :: [Point] -> Agent -> MWorld s -> ST s ()
 placeItem points agent w = do
   forM_ points $ \p -> do
     t <- readArray w p
-    t' <- return $ addScent agent diff_max $ addAgent agent t
+    t' <- return $ addAgent agent t
     writeArray w p t'
      
 colBound :: ScentedWorld -> Col
@@ -164,8 +164,8 @@ lambda :: Maybe Agent -> Double
 lambda Nothing = 1 -- land
 lambda (Just agent) =
   M.findWithDefault 1 agent $ M.fromList [(Food, 1.1)
-                                          , (OwnAnt, 0.8)
-                                          , (Water, -0.1)
+                                          , (OwnAnt, 0.5)
+                                          , (Water, 0)
                                           , (EnemyAnt, 1.11)
                                           ]
     
@@ -174,7 +174,7 @@ lambda (Just agent) =
 diffusion :: Point -> Agent -> ScentedWorld -> Double
 diffusion point agent world = 
   let neighborTiles = map (world%!) $ neighboringPoints world point
-      thisTile = world %! point
+      thisTile = world ! point
       diffusionvals = map (\x -> scent agent x - scent agent thisTile) neighborTiles
       summation = sum diffusionvals 
   in (lambda $ agents thisTile) * (scent agent thisTile + diff_rate * summation)
@@ -207,4 +207,5 @@ propagate1 modworld = do
       in do
       writeArray modworld p $ addScents' t
 
+getTile :: Point -> ScentedWorld -> ScentedTile
 getTile = flip (%!)
