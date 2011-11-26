@@ -40,7 +40,7 @@ diff_max = 50
 
 propagate_length = 11
 
-min_turn_unseen = 7
+min_turn_unseen = 9
 
 -- TYPES
 
